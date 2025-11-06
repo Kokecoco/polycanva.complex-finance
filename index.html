@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日経225トレーディングゲーム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 日経225トレーディングゲーム</h1>
+            <p class="subtitle">日経平均株価に連動する架空の金融商品を売買しよう！</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 市場情報 -->
+            <section class="market-info">
+                <h2>📊 市場情報</h2>
+                <div class="price-display">
+                    <div class="current-price">
+                        <span class="label">現在価格</span>
+                        <span class="price" id="currentPrice">---</span>
+                        <span class="unit">円</span>
+                    </div>
+                    <div class="price-change" id="priceChange">
+                        <span class="change-value">---</span>
+                        <span class="change-percent">(---)</span>
+                    </div>
+                </div>
+                <div class="update-info">
+                    <span id="lastUpdate">データ読み込み中...</span>
+                    <button id="refreshBtn" class="btn-small">🔄 更新</button>
+                </div>
+            </section>
+
+            <!-- ユーザー情報 -->
+            <section class="user-info">
+                <h2>💰 あなたの資産</h2>
+                <div class="balance-grid">
+                    <div class="balance-item">
+                        <span class="label">現金残高</span>
+                        <span class="value" id="cashBalance">1,000,000</span>
+                        <span class="unit">円</span>
+                    </div>
+                    <div class="balance-item">
+                        <span class="label">保有株数</span>
+                        <span class="value" id="shares">0</span>
+                        <span class="unit">株</span>
+                    </div>
+                    <div class="balance-item">
+                        <span class="label">評価額</span>
+                        <span class="value" id="portfolioValue">0</span>
+                        <span class="unit">円</span>
+                    </div>
+                    <div class="balance-item total">
+                        <span class="label">総資産</span>
+                        <span class="value" id="totalAssets">1,000,000</span>
+                        <span class="unit">円</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 取引パネル -->
+            <section class="trading-panel">
+                <h2>📈 取引</h2>
+                <div class="trade-controls">
+                    <div class="input-group">
+                        <label for="tradeAmount">取引株数</label>
+                        <input type="number" id="tradeAmount" min="1" value="1" step="1">
+                    </div>
+                    <div class="button-group">
+                        <button id="buyBtn" class="btn btn-buy">買う 💵</button>
+                        <button id="sellBtn" class="btn btn-sell">売る 💰</button>
+                    </div>
+                </div>
+                <div class="trade-info">
+                    <p id="tradePreview">---</p>
+                </div>
+            </section>
+
+            <!-- 取引履歴 -->
+            <section class="transaction-history">
+                <h2>📜 取引履歴</h2>
+                <div id="historyList" class="history-list">
+                    <p class="no-history">取引履歴はまだありません</p>
+                </div>
+            </section>
+        </div>
+
+        <footer>
+            <button id="resetBtn" class="btn-reset">🔄 ゲームをリセット</button>
+            <p class="disclaimer">※これは架空のゲームです。実際の金融商品の取引ではありません。</p>
+            <p class="api-info">データは約1分ごとに更新されます</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
