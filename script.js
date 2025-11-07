@@ -85,13 +85,35 @@ class TradingGame {
             
             // エラー時は模擬データを使用
             if (this.currentPrice === 0) {
-                this.currentPrice = 38000 + Math.random() * 2000; // 38000-40000の範囲
+                this.currentPrice = 48000 + Math.random() * 4000; // 48000-52000の範囲（現実的な価格帯）
                 this.previousPrice = this.currentPrice;
                 this.updateUI();
             }
         } finally {
             this.elements.lastUpdate.classList.remove('loading');
         }
+    }
+    
+    async fetchUsdJpyRate() {
+        try {
+            // USD/JPYの為替レートを取得
+            const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/USDJPY=X');
+            const data = await response.json();
+            
+            if (data.chart && data.chart.result && data.chart.result[0]) {
+                const result = data.chart.result[0];
+                const rate = result.meta.regularMarketPrice;
+                if (rate && !isNaN(rate)) {
+                    console.log(`Current USD/JPY rate: ${rate}`);
+                    return rate;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch USD/JPY rate:', error);
+        }
+        
+        // フォールバック: 概算レート
+        return 150;
     }
     
     async fetchFromYahoo(symbol) {
@@ -111,8 +133,25 @@ class TradingGame {
                 const quote = result.meta.regularMarketPrice || 
                              result.indicators.quote[0].close.slice(-1)[0];
                 
+                // 通貨情報を取得
+                const currency = result.meta.currency;
+                
+                console.log(`Fetched ${symbol}: ${quote} ${currency}`);
+                
                 if (quote && !isNaN(quote)) {
-                    return Math.round(quote * 100) / 100;
+                    let priceInJPY = quote;
+                    
+                    // USDで返される場合はJPYに変換
+                    // Yahoo FinanceのAPIは^N225をUSDで返すことがあるため、
+                    // JPY換算が必要（1 USD ≈ 150 JPY前後）
+                    if (currency === 'USD') {
+                        // USD→JPY換算レートを動的に取得
+                        const usdToJpyRate = await this.fetchUsdJpyRate();
+                        priceInJPY = quote * usdToJpyRate;
+                        console.log(`Currency conversion: ${quote} USD × ${usdToJpyRate} = ${priceInJPY} JPY`);
+                    }
+                    
+                    return Math.round(priceInJPY * 100) / 100;
                 }
             }
             
@@ -125,12 +164,13 @@ class TradingGame {
     
     async fetchMockData() {
         // 模擬データ: 実際の日経225の範囲内でランダムな価格変動を生成
-        const basePrice = this.currentPrice || 38000;
+        // 2025年11月時点での日経平均は5万円前後
+        const basePrice = this.currentPrice || 50000;
         const change = (Math.random() - 0.5) * 500; // -250から+250の変動
         const newPrice = basePrice + change;
         
-        // 現実的な範囲内に制限
-        return Math.max(30000, Math.min(45000, Math.round(newPrice * 100) / 100));
+        // 現実的な範囲内に制限（45,000〜55,000円）
+        return Math.max(45000, Math.min(55000, Math.round(newPrice * 100) / 100));
     }
     
     updateUI() {
