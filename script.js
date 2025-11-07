@@ -1,5 +1,13 @@
 // ゲーム状態管理
 class TradingGame {
+    // 定数定義
+    static DEFAULT_PRICE = 39000; // 初回起動時のデフォルト価格（JPY）
+    static MIN_NIKKEI_PRICE = 15000; // 日経225の最小妥当価格（JPY）
+    static MAX_NIKKEI_PRICE = 60000; // 日経225の最大妥当価格（JPY）
+    static MIN_USDJPY_RATE = 100; // USD/JPY為替レートの最小値
+    static MAX_USDJPY_RATE = 200; // USD/JPY為替レートの最大値
+    static DEFAULT_USDJPY_RATE = 150; // USD/JPY為替レートのデフォルト値
+    
     constructor() {
         this.currentPrice = 0;
         this.previousPrice = 0;
@@ -54,6 +62,13 @@ class TradingGame {
         this.elements.tradeAmount.addEventListener('input', () => this.updateTradePreview());
     }
     
+    setDefaultPrice() {
+        // 初回起動時のみ、現実的なデフォルト値を設定
+        // 実際のAPI取得を優先し、これはフォールバックとして使用
+        this.currentPrice = TradingGame.DEFAULT_PRICE;
+        this.previousPrice = this.currentPrice;
+    }
+    
     async fetchPrice() {
         try {
             this.elements.lastUpdate.textContent = 'データ取得中...';
@@ -78,10 +93,7 @@ class TradingGame {
             } else {
                 // API取得失敗時は既存の価格を保持（初回起動時のみデフォルト値を使用）
                 if (this.currentPrice === 0) {
-                    // 初回起動時のみ、現実的なデフォルト値を設定
-                    // 2024-2025年の日経平均の典型的な価格帯を使用
-                    this.currentPrice = 39000; // 概算値（実際のAPI取得を優先）
-                    this.previousPrice = this.currentPrice;
+                    this.setDefaultPrice();
                 }
                 this.elements.lastUpdate.textContent = 'API接続失敗 - 前回の価格を表示中';
                 this.updateUI();
@@ -93,9 +105,7 @@ class TradingGame {
             
             // エラー時も既存の価格を保持（初回起動時のみデフォルト値を使用）
             if (this.currentPrice === 0) {
-                // 初回起動時のみ、現実的なデフォルト値を設定
-                this.currentPrice = 39000; // 概算値（実際のAPI取得を優先）
-                this.previousPrice = this.currentPrice;
+                this.setDefaultPrice();
             }
             this.updateUI();
         } finally {
@@ -110,7 +120,7 @@ class TradingGame {
             
             if (!response.ok) {
                 console.error(`USD/JPY API returned status: ${response.status}`);
-                return 150; // フォールバック
+                return TradingGame.DEFAULT_USDJPY_RATE;
             }
             
             const data = await response.json();
@@ -128,8 +138,8 @@ class TradingGame {
                 }
                 
                 if (rate && !isNaN(rate) && rate > 0) {
-                    // 為替レートの妥当性チェック（100〜200円の範囲）
-                    if (rate >= 100 && rate <= 200) {
+                    // 為替レートの妥当性チェック
+                    if (rate >= TradingGame.MIN_USDJPY_RATE && rate <= TradingGame.MAX_USDJPY_RATE) {
                         console.log(`Current USD/JPY rate: ${rate}`);
                         return rate;
                     } else {
@@ -141,9 +151,9 @@ class TradingGame {
             console.error('Failed to fetch USD/JPY rate:', error);
         }
         
-        // フォールバック: 概算レート（2025年前後の典型的なレート範囲）
-        console.log('Using fallback USD/JPY rate: 150');
-        return 150;
+        // フォールバック: 典型的な為替レート
+        console.log(`Using fallback USD/JPY rate: ${TradingGame.DEFAULT_USDJPY_RATE}`);
+        return TradingGame.DEFAULT_USDJPY_RATE;
     }
     
     async fetchFromYahoo(symbol) {
@@ -191,8 +201,8 @@ class TradingGame {
                         console.warn(`Unexpected currency: ${currency}, treating as JPY`);
                     }
                     
-                    // 価格の妥当性チェック（日経225の現実的な範囲: 15,000〜60,000円）
-                    if (priceInJPY < 15000 || priceInJPY > 60000) {
+                    // 価格の妥当性チェック
+                    if (priceInJPY < TradingGame.MIN_NIKKEI_PRICE || priceInJPY > TradingGame.MAX_NIKKEI_PRICE) {
                         console.warn(`Price out of realistic range: ${priceInJPY} JPY`);
                         return null;
                     }
