@@ -112,7 +112,8 @@ class TradingGame {
             console.error('Failed to fetch USD/JPY rate:', error);
         }
         
-        // フォールバック: 概算レート
+        // フォールバック: 概算レート（2025年前後の典型的なレート範囲）
+        // 為替レートは変動するため、最新値の取得を優先してください
         return 150;
     }
     
@@ -143,7 +144,7 @@ class TradingGame {
                     
                     // USDで返される場合はJPYに変換
                     // Yahoo FinanceのAPIは^N225をUSDで返すことがあるため、
-                    // JPY換算が必要（1 USD ≈ 150 JPY前後）
+                    // JPY換算が必要（為替レートは動的に取得、失敗時は概算値を使用）
                     if (currency === 'USD') {
                         // USD→JPY換算レートを動的に取得
                         const usdToJpyRate = await this.fetchUsdJpyRate();
@@ -164,7 +165,7 @@ class TradingGame {
     
     async fetchMockData() {
         // 模擬データ: 実際の日経225の範囲内でランダムな価格変動を生成
-        // 2025年11月時点での日経平均は5万円前後
+        // 現代の日経平均の典型的な価格帯を基準にしています
         const basePrice = this.currentPrice || 50000;
         const change = (Math.random() - 0.5) * 500; // -250から+250の変動
         const newPrice = basePrice + change;
