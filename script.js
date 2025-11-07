@@ -1,5 +1,13 @@
 // ゲーム状態管理
 class TradingGame {
+    // 定数定義
+    static DEFAULT_PRICE = 39000; // 初回起動時のデフォルト価格（JPY）
+    static MIN_NIKKEI_PRICE = 15000; // 日経225の最小妥当価格（JPY）
+    static MAX_NIKKEI_PRICE = 60000; // 日経225の最大妥当価格（JPY）
+    static MIN_USDJPY_RATE = 100; // USD/JPY為替レートの最小値
+    static MAX_USDJPY_RATE = 200; // USD/JPY為替レートの最大値
+    static DEFAULT_USDJPY_RATE = 150; // USD/JPY為替レートのデフォルト値
+    
     constructor() {
         this.currentPrice = 0;
         this.previousPrice = 0;
@@ -54,6 +62,13 @@ class TradingGame {
         this.elements.tradeAmount.addEventListener('input', () => this.updateTradePreview());
     }
     
+    setDefaultPrice() {
+        // 初回起動時のみ、現実的なデフォルト値を設定
+        // 実際のAPI取得を優先し、これはフォールバックとして使用
+        this.currentPrice = TradingGame.DEFAULT_PRICE;
+        this.previousPrice = this.currentPrice;
+    }
+    
     async fetchPrice() {
         try {
             this.elements.lastUpdate.textContent = 'データ取得中...';
@@ -67,28 +82,32 @@ class TradingGame {
             // オプション1: Yahoo Finance API (非公式だが動作する)
             let price = await this.fetchFromYahoo(symbol);
             
-            // オプション2: フォールバック - 模擬データ
-            if (!price) {
-                price = await this.fetchMockData();
+            // APIが成功した場合のみ価格を更新
+            if (price && price > 0) {
+                this.previousPrice = this.currentPrice || price;
+                this.currentPrice = price;
+                this.lastUpdate = new Date();
+                
+                this.updateUI();
+                this.saveState();
+            } else {
+                // API取得失敗時は既存の価格を保持（初回起動時のみデフォルト値を使用）
+                if (this.currentPrice === 0) {
+                    this.setDefaultPrice();
+                }
+                this.elements.lastUpdate.textContent = 'API接続失敗 - 前回の価格を表示中';
+                this.updateUI();
             }
-            
-            this.previousPrice = this.currentPrice || price;
-            this.currentPrice = price;
-            this.lastUpdate = new Date();
-            
-            this.updateUI();
-            this.saveState();
             
         } catch (error) {
             console.error('価格取得エラー:', error);
-            this.elements.lastUpdate.textContent = 'データ取得失敗 - 再試行中...';
+            this.elements.lastUpdate.textContent = 'データ取得失敗 - 前回の価格を表示中';
             
-            // エラー時は模擬データを使用
+            // エラー時も既存の価格を保持（初回起動時のみデフォルト値を使用）
             if (this.currentPrice === 0) {
-                this.currentPrice = 48000 + Math.random() * 4000; // 48000-52000の範囲（現実的な価格帯）
-                this.previousPrice = this.currentPrice;
-                this.updateUI();
+                this.setDefaultPrice();
             }
+            this.updateUI();
         } finally {
             this.elements.lastUpdate.classList.remove('loading');
         }
@@ -98,23 +117,43 @@ class TradingGame {
         try {
             // USD/JPYの為替レートを取得
             const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/USDJPY=X');
+            
+            if (!response.ok) {
+                console.error(`USD/JPY API returned status: ${response.status}`);
+                return TradingGame.DEFAULT_USDJPY_RATE;
+            }
+            
             const data = await response.json();
             
             if (data.chart && data.chart.result && data.chart.result[0]) {
                 const result = data.chart.result[0];
-                const rate = result.meta.regularMarketPrice;
-                if (rate && !isNaN(rate)) {
-                    console.log(`Current USD/JPY rate: ${rate}`);
-                    return rate;
+                let rate = result.meta.regularMarketPrice;
+                
+                // regularMarketPriceが無い場合は最新のclose値を使用
+                if (!rate && result.indicators && result.indicators.quote && result.indicators.quote[0]) {
+                    const quotes = result.indicators.quote[0].close;
+                    if (quotes && quotes.length > 0) {
+                        rate = quotes[quotes.length - 1];
+                    }
+                }
+                
+                if (rate && !isNaN(rate) && rate > 0) {
+                    // 為替レートの妥当性チェック
+                    if (rate >= TradingGame.MIN_USDJPY_RATE && rate <= TradingGame.MAX_USDJPY_RATE) {
+                        console.log(`Current USD/JPY rate: ${rate}`);
+                        return rate;
+                    } else {
+                        console.warn(`USD/JPY rate out of realistic range: ${rate}`);
+                    }
                 }
             }
         } catch (error) {
             console.error('Failed to fetch USD/JPY rate:', error);
         }
         
-        // フォールバック: 概算レート（2025年前後の典型的なレート範囲）
-        // 為替レートは変動するため、最新値の取得を優先してください
-        return 150;
+        // フォールバック: 典型的な為替レート
+        console.log(`Using fallback USD/JPY rate: ${TradingGame.DEFAULT_USDJPY_RATE}`);
+        return TradingGame.DEFAULT_USDJPY_RATE;
     }
     
     async fetchFromYahoo(symbol) {
@@ -124,22 +163,30 @@ class TradingGame {
             const response = await fetch(url);
             
             if (!response.ok) {
-                throw new Error('Yahoo Finance API error');
+                console.error(`Yahoo Finance API returned status: ${response.status}`);
+                return null;
             }
             
             const data = await response.json();
             
             if (data.chart && data.chart.result && data.chart.result[0]) {
                 const result = data.chart.result[0];
-                const quote = result.meta.regularMarketPrice || 
-                             result.indicators.quote[0].close.slice(-1)[0];
+                
+                // 価格を取得（複数のソースを試す）
+                let quote = result.meta.regularMarketPrice;
+                if (!quote && result.indicators && result.indicators.quote && result.indicators.quote[0]) {
+                    const quotes = result.indicators.quote[0].close;
+                    if (quotes && quotes.length > 0) {
+                        quote = quotes[quotes.length - 1];
+                    }
+                }
                 
                 // 通貨情報を取得
                 const currency = result.meta.currency;
                 
                 console.log(`Fetched ${symbol}: ${quote} ${currency}`);
                 
-                if (quote && !isNaN(quote)) {
+                if (quote && !isNaN(quote) && quote > 0) {
                     let priceInJPY = quote;
                     
                     // USDで返される場合はJPYに変換
@@ -150,12 +197,21 @@ class TradingGame {
                         const usdToJpyRate = await this.fetchUsdJpyRate();
                         priceInJPY = quote * usdToJpyRate;
                         console.log(`Currency conversion: ${quote} USD × ${usdToJpyRate} = ${priceInJPY} JPY`);
+                    } else if (currency !== 'JPY') {
+                        console.warn(`Unexpected currency: ${currency}, treating as JPY`);
+                    }
+                    
+                    // 価格の妥当性チェック
+                    if (priceInJPY < TradingGame.MIN_NIKKEI_PRICE || priceInJPY > TradingGame.MAX_NIKKEI_PRICE) {
+                        console.warn(`Price out of realistic range: ${priceInJPY} JPY`);
+                        return null;
                     }
                     
                     return Math.round(priceInJPY * 100) / 100;
                 }
             }
             
+            console.error('Invalid data structure from Yahoo Finance API');
             return null;
         } catch (error) {
             console.error('Yahoo Finance fetch error:', error);
@@ -163,16 +219,7 @@ class TradingGame {
         }
     }
     
-    async fetchMockData() {
-        // 模擬データ: 実際の日経225の範囲内でランダムな価格変動を生成
-        // 現代の日経平均の典型的な価格帯を基準にしています
-        const basePrice = this.currentPrice || 50000;
-        const change = (Math.random() - 0.5) * 500; // -250から+250の変動
-        const newPrice = basePrice + change;
-        
-        // 現実的な範囲内に制限（45,000〜55,000円）
-        return Math.max(45000, Math.min(55000, Math.round(newPrice * 100) / 100));
-    }
+
     
     updateUI() {
         // 価格表示
